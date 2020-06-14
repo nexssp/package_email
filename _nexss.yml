@@ -11,8 +11,6 @@ output:
   - name: emailTotal
     validate:
       - type: number
-data:
-  nexssfileEmailTestDATA: 1
 files:
   # - name: config.json
   - name: email.php
