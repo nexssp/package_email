@@ -1,0 +1,21 @@
+name: Email
+debug: true
+input:
+  - name: _imap_username
+    validate:
+      - type: required
+  - name: _imap_password
+    validate:
+      - type: required
+output:
+  - name: emailTotal
+    validate:
+      - type: number
+data:
+  nexssfileEmailTestDATA: 1
+files:
+  # - name: config.json
+  - name: email.php
+commands:
+  - name: dev
+    command: nexss config.json | nexss Email --nxsDebug

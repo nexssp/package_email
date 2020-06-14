@@ -1,0 +1,7 @@
+{
+  "imap_download_path": "${cwd}/invoices",
+  "imap_host": "your_imap_server",
+  "imap_port": 993,
+  "_imap_username": "your_imap_username",
+  "_imap_password": "your_imap_password"
+}
