@@ -164,14 +164,15 @@ if (@$parsedJson['attachmentType'] || @$parsedJson['attachmentRegexp']) {
         $regexp = $parsedJson['attachmentRegexp'];
     }
 
-    $NexssStdout['attachmentSearchRegExp'] = $regexp;
-
+    $parsedJson['attachmentSearchRegExp'] = $regexp;
+    unset($parsedJson['attachmentRegexp']);
+    unset($parsedJson['attachmentType']);
     // Email download PATH
     if (isset($imapDownloadsPath)) {
         $emailAttachmentsDownloadsPath = $imapDownloadsPath;
     } else {
-        if (isset($NexssStdout['emailDownloadPath'])) {
-            if (is_absolute_path($NexssStdout['emailDownloadPath'])) {
+        if (isset($parsedJson['emailDownloadPath'])) {
+            if (is_absolute_path($parsedJson['emailDownloadPath'])) {
                 $emailAttachmentsDownloadsPath = $parsedJson['emailDownloadPath'];
             } else {
                 $emailAttachmentsDownloadsPath = __DIR__ . "/" . $parsedJson['emailDownloadPath'];
