@@ -2,14 +2,6 @@
 $NexssStdin = fgets(STDIN);
 $parsedJson = json_decode($NexssStdin, true);
 
-// EMAIL REQUIRED FIELD, AND DISPLAY EXAMPLE OF CONFIGURATION
-if (!@$parsedJson['_imap_username']) {
-    nxsWarn("IMAP seems to be not configured.");
-    nxsWarn("Create config.json and eg run: nexss config.json | nexss Email");
-    nxsWarn("\nExample config file:\n" . file_get_contents(__DIR__ . '/config.example.json'));
-    exit();
-}
-
 // -------------------------------------------------------------
 // EMAIL - LOAD NEXSS PROGRAMMER PHP LIBRARIES
 // -------------------------------------------------------------
@@ -17,6 +9,14 @@ if (!@$parsedJson['_imap_username']) {
 require_once(getenv("NEXSS_PACKAGES_PATH") . "/Nexss/Lib/NexssEnv.php");
 require_once(genv("NEXSS_PACKAGES_PATH") . "/Nexss/Lib/NexssLog.php");
 require_once(genv("NEXSS_PACKAGES_PATH") . "/Nexss/Lib/NexssFormat.php");
+
+// EMAIL REQUIRED FIELD, AND DISPLAY EXAMPLE OF CONFIGURATION
+if (!@$parsedJson['__imap_username']) {
+    nxsWarn("IMAP seems to be not configured.");
+    nxsWarn("Create config.json and eg run: nexss config.json | nexss Email");
+    nxsWarn("\nExample config file:\n" . file_get_contents(__DIR__ . '/config.example.json'));
+    exit();
+}
 
 use Nexss\Format;
 
@@ -52,7 +52,7 @@ if (@$parsedJson['emailMaxFetch']) {
 
 $address = "$host:$port";
 $mailboxURL = "{" . $address . "/imap/ssl}INBOX";
-$inbox = imap_open($mailboxURL, @$parsedJson['_imap_username'], @$parsedJson['_imap_password']);
+$inbox = imap_open($mailboxURL, @$parsedJson['__imap_username'], @$parsedJson['__imap_password']);
 if (!$inbox) {
     nxsError("can't connect: " . imap_last_error());
 }
@@ -63,8 +63,8 @@ if (isset($parsedJson['imap_download_path'])) {
 if (!@$parsedJson['nxsKeepVars']) {
     unset($parsedJson['imap_host']);
     unset($parsedJson['imap_port']);
-    unset($parsedJson['_imap_username']);
-    unset($parsedJson['_imap_password']);
+    unset($parsedJson['__imap_username']);
+    unset($parsedJson['__imap_password']);
     unset($parsedJson['imap_download_path']);
 
     unset($parsedJson['nxsKeepVars']);

@@ -1,10 +1,10 @@
 name: Email
 debug: true
 input:
-  - name: _imap_username
+  - name: __imap_username
     validate:
       - type: required
-  - name: _imap_password
+  - name: __imap_password
     validate:
       - type: required
 output:
