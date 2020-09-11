@@ -15,6 +15,8 @@ nexss Email --emailMaxFetch=20 # set limit to 20 emails at once
 
 nexss Email --emailSearch="FROM mapoart@gmail.com" # more here: <https://www.php.net/manual/en/function.imap-search.php>
 nexss Email --emailSearch="UNSEEN"
+
+nexss Email --nxsTimezone # list of available timezones https://www.php.net/manual/en/timezones.europe.php
 ```
 
 ### Parameters

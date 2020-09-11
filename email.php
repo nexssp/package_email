@@ -24,6 +24,14 @@ use Nexss\Format;
 // EMAIL - SETTINGS, PARAMETERS
 // -------------------------------------------------------------
 
+
+$timezone = genv("PHP_DEFAULT_TIMEZONE");
+if (@$parsedJson['nxsTimezone']) {
+    $timezone = $parsedJson['nxsTimezone'];
+}
+
+date_default_timezone_set($timezone);
+
 $host = genv("IMAP_DEFAULT_HOST");
 if (@$parsedJson['imap_host']) {
     $host = $parsedJson['imap_host'];
