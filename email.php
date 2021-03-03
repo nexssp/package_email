@@ -60,211 +60,219 @@ if (@$parsedJson['emailMaxFetch']) {
 
 $address = "$host:$port";
 $mailboxURL = "{" . $address . "/imap/ssl}INBOX";
-$inbox = imap_open($mailboxURL, @$parsedJson['__imap_username'], @$parsedJson['__imap_password']);
-if (!$inbox) {
-    nxsError("can't connect: " . imap_last_error());
-}
-if (isset($parsedJson['imap_download_path'])) {
-    $imapDownloadsPath = $parsedJson['imap_download_path'];
-}
 
-if (!@$parsedJson['nxsKeepVars']) {
-    unset($parsedJson['imap_host']);
-    unset($parsedJson['imap_port']);
-    unset($parsedJson['__imap_username']);
-    unset($parsedJson['__imap_password']);
-    unset($parsedJson['imap_download_path']);
+if (function_exists('imap_open')) {
+    $inbox = imap_open($mailboxURL, @$parsedJson['__imap_username'], @$parsedJson['__imap_password']);
+    if (!$inbox) {
+        nxsError("can't connect: " . imap_last_error());
+    }
+    if (isset($parsedJson['imap_download_path'])) {
+        $imapDownloadsPath = $parsedJson['imap_download_path'];
+    }
 
-    unset($parsedJson['nxsKeepVars']);
-}
+    if (!@$parsedJson['nxsKeepVars']) {
+        unset($parsedJson['imap_host']);
+        unset($parsedJson['imap_port']);
+        unset($parsedJson['__imap_username']);
+        unset($parsedJson['__imap_password']);
+        unset($parsedJson['imap_download_path']);
 
-if (@$parsedJson['emailStatus']) {
-    $inboxCheck = imap_check($inbox);
-    $parsedJson['Mailbox'] = $inboxCheck->Mailbox;
-    $parsedJson['MailboxDate'] = $inboxCheck->Date;
-    $parsedJson['MailboxNMsgs'] = $inboxCheck->Nmsgs;
-    $parsedJson['MailboxRecent'] = $inboxCheck->Recent;
+        unset($parsedJson['nxsKeepVars']);
+    }
 
-    unset($parsedJson['emailStatus']);
-}
+    if (@$parsedJson['emailStatus']) {
+        $inboxCheck = imap_check($inbox);
+        $parsedJson['Mailbox'] = $inboxCheck->Mailbox;
+        $parsedJson['MailboxDate'] = $inboxCheck->Date;
+        $parsedJson['MailboxNMsgs'] = $inboxCheck->Nmsgs;
+        $parsedJson['MailboxRecent'] = $inboxCheck->Recent;
 
-// -------------------------------------------------------------
-// EMAIL - SEARCH EMAILS
-// -------------------------------------------------------------
-$result = null;
-if (@$parsedJson['emailSearch']) {
-    try {
-        if (is_numeric($parsedJson['emailSearch'])) {
-            $searchCriteria = $parsedJson['emailSearch'] . ":" . $emailMaxFetch;
-            $emails =
-                imap_fetch_overview($inbox, $searchCriteria, FT_UID); //FT_UID
-        } else {
-            $searchCriteria = $parsedJson['emailSearch'];
+        unset($parsedJson['emailStatus']);
+    }
 
-            $emails = imap_search($inbox, $searchCriteria, FT_UID);
-            // imap_search only returns the uids(FT_UID) so we get emails with fetch overview
-            if ($emails && is_array($emails)) {
+    // -------------------------------------------------------------
+    // EMAIL - SEARCH EMAILS
+    // -------------------------------------------------------------
+    $result = null;
+    if (@$parsedJson['emailSearch']) {
+        try {
+            if (is_numeric($parsedJson['emailSearch'])) {
+                $searchCriteria = $parsedJson['emailSearch'] . ":" . $emailMaxFetch;
                 $emails =
-                    imap_fetch_overview($inbox, implode(",", $emails), FT_UID);
-            }
-        }
-        $parsedJson['searchCriteria'] = $searchCriteria;
-        unset($parsedJson['emailSearch']);
-    } catch (\Throwable $th) {
-        nxsError("Search criteria: $searchCriteria");
-        nxsError("Error message: " . $th->getMessage());
-        exit(1);
-    }
-    if (is_array($emails)) {
-        $result = array_map(function ($email) use ($inbox) {
-            $subject = imap_mime_header_decode($email->subject);
-
-            return [
-                "subject" => $subject[0]->text,
-                "from" => $email->from,
-                "to" => $email->to,
-                "date" => $email->date,
-                "size" => Format::Bytes($email->size),
-                "seen" => $email->seen,
-                "uid" => $email->uid,
-                "message_id" => $email->message_id,
-                "date" => date("Y-m-d H:i:s", $email->udate),
-                "udate" => $email->udate
-            ];
-        }, $emails);
-
-        if ($result) {
-            $lastMessage = end($result);
-            $lastMessageUID = end($result)['uid'];
-            $parsedJson['emailLastUID'] = $lastMessageUID;
-            $parsedJson['emailTotal'] = count($result);
-            $parsedJson['emailFound'] = $result;
-        } else {
-            $parsedJson['emailTotal'] = 0;
-        }
-    } else {
-        nxsWarn("No emails found");
-    }
-}
-
-// -------------------------------------------------------------
-// EMAIL - ATTACHMENTS
-// -------------------------------------------------------------
-
-function is_absolute_path($path)
-{
-    if ($path === null || $path === '') throw new Exception("Empty path");
-    return $path[0] === DIRECTORY_SEPARATOR || preg_match('~\A[A-Z]:(?![^/\\\\])~i', $path) > 0;
-}
-
-if (@$parsedJson['attachmentType'] || @$parsedJson['attachmentRegexp']) {
-    $regexp = '';
-
-    if (@$parsedJson['attachmentType']) {
-        if (!is_array($parsedJson['attachmentType'])) {
-            $parsedJson['attachmentType'] = [$parsedJson['attachmentType']];
-        }
-
-        $regexp = "/^.*\.(" . implode("|", $parsedJson['attachmentType']) . ")$/i";
-    }
-
-    if (@$parsedJson['attachmentRegexp']) {
-        $regexp = $parsedJson['attachmentRegexp'];
-    }
-
-    $parsedJson['attachmentSearchRegExp'] = $regexp;
-    unset($parsedJson['attachmentRegexp']);
-    unset($parsedJson['attachmentType']);
-    // Email download PATH
-    if (isset($imapDownloadsPath)) {
-        $emailAttachmentsDownloadsPath = $imapDownloadsPath;
-    } else {
-        if (isset($parsedJson['emailDownloadPath'])) {
-            if (is_absolute_path($parsedJson['emailDownloadPath'])) {
-                $emailAttachmentsDownloadsPath = $parsedJson['emailDownloadPath'];
+                    imap_fetch_overview($inbox, $searchCriteria, FT_UID); //FT_UID
             } else {
-                $emailAttachmentsDownloadsPath = __DIR__ . "/" . $parsedJson['emailDownloadPath'];
+                $searchCriteria = $parsedJson['emailSearch'];
+
+                $emails = imap_search($inbox, $searchCriteria, FT_UID);
+                // imap_search only returns the uids(FT_UID) so we get emails with fetch overview
+                if ($emails && is_array($emails)) {
+                    $emails =
+                        imap_fetch_overview($inbox, implode(",", $emails), FT_UID);
+                }
+            }
+            $parsedJson['searchCriteria'] = $searchCriteria;
+            unset($parsedJson['emailSearch']);
+        } catch (\Throwable $th) {
+            nxsError("Search criteria: $searchCriteria");
+            nxsError("Error message: " . $th->getMessage());
+            exit(1);
+        }
+        if (is_array($emails)) {
+            $result = array_map(function ($email) use ($inbox) {
+                $subject = imap_mime_header_decode($email->subject);
+
+                return [
+                    "subject" => $subject[0]->text,
+                    "from" => $email->from,
+                    "to" => $email->to,
+                    "date" => $email->date,
+                    "size" => Format::Bytes($email->size),
+                    "seen" => $email->seen,
+                    "uid" => $email->uid,
+                    "message_id" => $email->message_id,
+                    "date" => date("Y-m-d H:i:s", $email->udate),
+                    "udate" => $email->udate
+                ];
+            }, $emails);
+
+            if ($result) {
+                $lastMessage = end($result);
+                $lastMessageUID = end($result)['uid'];
+                $parsedJson['emailLastUID'] = $lastMessageUID;
+                $parsedJson['emailTotal'] = count($result);
+                $parsedJson['emailFound'] = $result;
+            } else {
+                $parsedJson['emailTotal'] = 0;
             }
         } else {
-            $emailAttachmentsDownloadsPath = $parsedJson['cwd'] . "/" . genv('EMAIL_DOWNLOAD_ATTACHMENTS_PATH');
+            nxsWarn("No emails found");
         }
     }
 
 
+    // -------------------------------------------------------------
+    // EMAIL - ATTACHMENTS
+    // -------------------------------------------------------------
 
-    if (!file_exists($emailAttachmentsDownloadsPath)) {
-        mkdir($emailAttachmentsDownloadsPath, 0777, true);
+    function is_absolute_path($path)
+    {
+        if ($path === null || $path === '') throw new Exception("Empty path");
+        return $path[0] === DIRECTORY_SEPARATOR || preg_match('~\A[A-Z]:(?![^/\\\\])~i', $path) > 0;
     }
 
-    /* put the newest emails on top */
-    // rsort($emails);
-    $files = [];
-    foreach ($emails as $email) {
-        $email_number = $email->uid;
-        //     $overview  = imap_fetch_overview($imap, $uid, FT_UID);
-        //     $headers   = imap_fetchbody($imap, $uid, 0, FT_UID); // message
-        //     $plaintext = imap_fetchbody($imap, $uid, 1, FT_UID);
-        //     $html      = imap_fetchbody($imap, $uid, 2, FT_UID);
-        $structure = imap_fetchstructure($inbox, $email_number, FT_UID);
-        $attachments = array();
-        if (isset($structure->parts) && count($structure->parts)) {
-            for ($i = 0; $i < count($structure->parts); $i++) {
-                $filename = '';
-                $attachments[$i] = array(
-                    'is_attachment' => false,
-                    'filename' => '',
-                    'name' => '',
-                    'attachment' => ''
-                );
+    if (@$parsedJson['attachmentType'] || @$parsedJson['attachmentRegexp']) {
+        $regexp = '';
 
-                if ($structure->parts[$i]->ifdparameters) {
-                    foreach ($structure->parts[$i]->dparameters as $object) {
-                        if (strtolower($object->attribute) == 'filename') {
-                            $attachments[$i]['is_attachment'] = true;
-                            $attachments[$i]['filename'] = $object->value;
+        if (@$parsedJson['attachmentType']) {
+            if (!is_array($parsedJson['attachmentType'])) {
+                $parsedJson['attachmentType'] = [$parsedJson['attachmentType']];
+            }
 
-                            $filename = $object->value;
-                        } elseif (strtolower($object->attribute) == 'name') {
-                            $attachments[$i]['is_attachment'] = true;
-                            $attachments[$i]['name'] = $object->value;
+            $regexp = "/^.*\.(" . implode("|", $parsedJson['attachmentType']) . ")$/i";
+        }
+
+        if (@$parsedJson['attachmentRegexp']) {
+            $regexp = $parsedJson['attachmentRegexp'];
+        }
+
+        $parsedJson['attachmentSearchRegExp'] = $regexp;
+        unset($parsedJson['attachmentRegexp']);
+        unset($parsedJson['attachmentType']);
+        // Email download PATH
+        if (isset($imapDownloadsPath)) {
+            $emailAttachmentsDownloadsPath = $imapDownloadsPath;
+        } else {
+            if (isset($parsedJson['emailDownloadPath'])) {
+                if (is_absolute_path($parsedJson['emailDownloadPath'])) {
+                    $emailAttachmentsDownloadsPath = $parsedJson['emailDownloadPath'];
+                } else {
+                    $emailAttachmentsDownloadsPath = __DIR__ . "/" . $parsedJson['emailDownloadPath'];
+                }
+            } else {
+                $emailAttachmentsDownloadsPath = $parsedJson['cwd'] . "/" . genv('EMAIL_DOWNLOAD_ATTACHMENTS_PATH');
+            }
+        }
+
+
+
+        if (!file_exists($emailAttachmentsDownloadsPath)) {
+            mkdir($emailAttachmentsDownloadsPath, 0777, true);
+        }
+
+        /* put the newest emails on top */
+        // rsort($emails);
+        $files = [];
+        foreach ($emails as $email) {
+            $email_number = $email->uid;
+            //     $overview  = imap_fetch_overview($imap, $uid, FT_UID);
+            //     $headers   = imap_fetchbody($imap, $uid, 0, FT_UID); // message
+            //     $plaintext = imap_fetchbody($imap, $uid, 1, FT_UID);
+            //     $html      = imap_fetchbody($imap, $uid, 2, FT_UID);
+            $structure = imap_fetchstructure($inbox, $email_number, FT_UID);
+            $attachments = array();
+            if (isset($structure->parts) && count($structure->parts)) {
+                for ($i = 0; $i < count($structure->parts); $i++) {
+                    $filename = '';
+                    $attachments[$i] = array(
+                        'is_attachment' => false,
+                        'filename' => '',
+                        'name' => '',
+                        'attachment' => ''
+                    );
+
+                    if ($structure->parts[$i]->ifdparameters) {
+                        foreach ($structure->parts[$i]->dparameters as $object) {
+                            if (strtolower($object->attribute) == 'filename') {
+                                $attachments[$i]['is_attachment'] = true;
+                                $attachments[$i]['filename'] = $object->value;
+
+                                $filename = $object->value;
+                            } elseif (strtolower($object->attribute) == 'name') {
+                                $attachments[$i]['is_attachment'] = true;
+                                $attachments[$i]['name'] = $object->value;
+                            }
+                        }
+                    }
+                    if ($filename) {
+                        if (!preg_match($regexp, $filename)) {
+                            nxsDebug("Attachment $filename not matched.");
+                            unset($attachments[$i]);
+                            continue;
+                        } else {
+                            nxsDebug("Attachment $filename matched.");
+                        }
+                    }
+
+                    if ($attachments[$i]['is_attachment']) {
+                        $attachments[$i]['attachment'] = imap_fetchbody($inbox, $email_number, $i + 1, FT_UID);
+                        if ($structure->parts[$i]->encoding == 3) { // 3 = BASE64
+                            $attachments[$i]['attachment'] = base64_decode($attachments[$i]['attachment']);
+                        } elseif ($structure->parts[$i]->encoding == 4) { // 4 = QUOTED-PRINTABLE
+                            $attachments[$i]['attachment'] = quoted_printable_decode($attachments[$i]['attachment']);
                         }
                     }
                 }
-                if ($filename) {
-                    if (!preg_match($regexp, $filename)) {
-                        nxsDebug("Attachment $filename not matched.");
-                        unset($attachments[$i]);
-                        continue;
-                    } else {
-                        nxsDebug("Attachment $filename matched.");
-                    }
-                }
+            }
 
-                if ($attachments[$i]['is_attachment']) {
-                    $attachments[$i]['attachment'] = imap_fetchbody($inbox, $email_number, $i + 1, FT_UID);
-                    if ($structure->parts[$i]->encoding == 3) { // 3 = BASE64
-                        $attachments[$i]['attachment'] = base64_decode($attachments[$i]['attachment']);
-                    } elseif ($structure->parts[$i]->encoding == 4) { // 4 = QUOTED-PRINTABLE
-                        $attachments[$i]['attachment'] = quoted_printable_decode($attachments[$i]['attachment']);
-                    }
+            foreach ($attachments as $at) {
+                if ($at['is_attachment']) {
+                    $file = $emailAttachmentsDownloadsPath . "/" . $email_number . "_" . imap_utf8($at['filename']);
+                    file_put_contents($file, $at['attachment']);
+                    $files[] = str_replace($parsedJson['cwd'], ".", $file);
                 }
             }
         }
-
-        foreach ($attachments as $at) {
-            if ($at['is_attachment']) {
-                $file = $emailAttachmentsDownloadsPath . "/" . $email_number . "_" . imap_utf8($at['filename']);
-                file_put_contents($file, $at['attachment']);
-                $files[] = str_replace($parsedJson['cwd'], ".", $file);
-            }
+        if ($files) {
+            $parsedJson['emailStoredAttachments'] = $files;
         }
     }
-    if ($files) {
-        $parsedJson['emailStoredAttachments'] = $files;
-    }
+
+    imap_close($inbox);
+} else {
+    $parsedJson['nxsStop'] = true;
+    $parsedJson['nxsStopReason'] = "imail_open function does not exist.";
 }
 
-imap_close($inbox);
 
 $NexssStdout = json_encode($parsedJson, JSON_UNESCAPED_UNICODE);
 
